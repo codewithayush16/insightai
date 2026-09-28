@@ -2219,8 +2219,7 @@
        API
     ======================================================== */
 
-    const API_BASE =
-        "http://127.0.0.1:8000";
+   const API_BASE = "https://insightai-backend-bo84.onrender.com";
 
 
     /* ========================================================
@@ -2359,9 +2358,8 @@
 
             const response =
                 await fetch(
-                    `${API_BASE}/health`
-                );
-
+    `${API_BASE}/`
+);
 
             if (!response.ok) {
 
@@ -2376,7 +2374,7 @@
                 await response.json();
 
 
-            if (data.status === "healthy") {
+            if (data.success === true) {
 
                 status.textContent =
                     "Backend Online";
@@ -7719,7 +7717,165 @@
     }
 
 
-    async function sendInsightChat() {
+function renderInsightChatChart(chart) {
+
+        const box = document.getElementById("insightChatMessages");
+        if (!box || !chart) return;
+
+        const chartType = String(
+            chart.type ||
+            chart.chart_type ||
+            chart.chartType ||
+            "bar"
+        ).toLowerCase();
+
+        const labels = Array.isArray(chart.labels)
+            ? chart.labels
+            : Array.isArray(chart.categories)
+                ? chart.categories
+                : [];
+
+        const datasets = Array.isArray(chart.datasets)
+            ? chart.datasets
+            : [];
+
+        // Support backend responses that provide a single data array.
+        const normalizedDatasets = datasets.length
+            ? datasets
+            : (
+                Array.isArray(chart.data)
+                    ? [{
+                        label: chart.label || chart.y_column || "Value",
+                        data: chart.data
+                    }]
+                    : []
+            );
+
+        if (!labels.length && !normalizedDatasets.length) {
+            return;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.height = 260;
+
+        const wrapper = document.createElement("div");
+        wrapper.style.padding = "14px";
+        wrapper.style.borderRadius = "10px";
+        wrapper.style.marginBottom = "10px";
+        wrapper.style.background = "white";
+        wrapper.style.border = "1px solid #e5e7eb";
+        wrapper.style.maxWidth = "100%";
+
+        const title = document.createElement("div");
+        title.style.fontWeight = "700";
+        title.style.marginBottom = "10px";
+        title.textContent =
+            chart.title ||
+            chart.name ||
+            "InsightAI Chart";
+
+        wrapper.appendChild(title);
+        wrapper.appendChild(canvas);
+        box.appendChild(wrapper);
+
+        if (typeof Chart === "undefined") {
+            title.insertAdjacentHTML(
+                "afterend",
+                '<div class="error">Chart.js is not available.</div>'
+            );
+            return;
+        }
+
+        const datasetsForChart = normalizedDatasets.map(
+            (dataset, index) => ({
+                label: dataset.label || `Series ${index + 1}`,
+                data: Array.isArray(dataset.data)
+                    ? dataset.data
+                    : [],
+                borderWidth: 2,
+                tension: 0.25,
+                fill: chartType === "line"
+                    ? false
+                    : undefined
+            })
+        );
+
+        // "combo" / "grouped" / "comparison" charts are rendered
+        // as multiple side-by-side bar series.
+        const isCombo =
+            chartType === "combo" ||
+            chartType === "grouped_bar" ||
+            chartType === "grouped" ||
+            chartType === "comparison";
+
+        const actualType =
+            chartType === "pie"
+                ? "pie"
+                : chartType === "line"
+                    ? "line"
+                    : chartType === "scatter"
+                        ? "scatter"
+                        : "bar";
+
+        const config = {
+            type: actualType,
+            data: {
+                labels: labels,
+                datasets: datasetsForChart
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: datasetsForChart.length > 1 ||
+                            actualType === "pie"
+                    }
+                }
+            }
+        };
+
+        if (isCombo && actualType === "bar") {
+            config.options.scales = {
+                x: {
+                    stacked: Boolean(chart.stacked)
+                },
+                y: {
+                    beginAtZero: true,
+                    stacked: Boolean(chart.stacked)
+                }
+            };
+        }
+
+        // For a backend "bar_combo" response, support an optional
+        // line series by reading dataset.type = "line".
+        if (
+            (chartType === "combo" || chartType === "bar_combo") &&
+            normalizedDatasets.some(d => d.type === "line")
+        ) {
+            config.type = "bar";
+            config.data.datasets = normalizedDatasets.map(
+                (dataset, index) => ({
+                    label: dataset.label || `Series ${index + 1}`,
+                    data: Array.isArray(dataset.data)
+                        ? dataset.data
+                        : [],
+                    type: dataset.type === "line"
+                        ? "line"
+                        : "bar",
+                    borderWidth: 2,
+                    tension: 0.25
+                })
+            );
+        }
+
+        new Chart(canvas.getContext("2d"), config);
+
+        box.scrollTop = box.scrollHeight;
+    }
+
+
+        async function sendInsightChat() {
 
         const input = document.getElementById("insightChatInput");
         const status = document.getElementById("insightChatStatus");
@@ -7753,18 +7909,29 @@
 
             const data = await response.json();
 
-            if (!response.ok || data.success === false) {
+            if (!response.ok || !data || data.success === false) {
                 throw new Error(
-                    data.detail ||
-                    data.message ||
+                    (data && (
+                        data.detail ||
+                        data.message ||
+                        data.answer
+                    )) ||
                     "Chat request failed."
                 );
             }
 
             appendInsightChatMessage(
                 "assistant",
-                data.answer || data.response || data.message || "No answer received."
+                data.answer ||
+                data.response ||
+                data.message ||
+                "No answer received."
             );
+
+            // Backend chart response -> render inside chat.
+            if (data.chart) {
+                renderInsightChatChart(data.chart);
+            }
 
             if (status) {
                 status.className = "success";
