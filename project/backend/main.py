@@ -4754,6 +4754,67 @@ def chat(
         return chart_result
 
 
+
+    # ========================================================
+    # DETERMINISTIC DATASET ANALYSIS
+    # ========================================================
+
+    analysis_result = deterministic_analysis(
+        question
+    )
+
+    if analysis_result is not None:
+
+        if "answer" in analysis_result:
+            analysis_result["answer"] = repair_mojibake(
+                analysis_result["answer"]
+            )
+
+        return analysis_result
+
+    # ========================================================
+    # DYNAMIC DATASET ANALYSIS
+    # ========================================================
+
+    dynamic_result = dynamic_dataset_analysis(
+        question
+    )
+
+    if dynamic_result is not None:
+
+        if "answer" in dynamic_result:
+            dynamic_result["answer"] = repair_mojibake(
+                dynamic_result["answer"]
+            )
+
+        return dynamic_result
+
+    # ========================================================
+    # NORMAL AI CHAT
+    # ========================================================
+
+    result = ask_huggingface(
+        question
+    )
+
+    if result is None:
+        return {
+            "success": False,
+            "provider": "InsightAI",
+            "type": "chat",
+            "answer": (
+                "I could not generate a response for that question."
+            )
+        }
+
+    if "answer" in result:
+        result["answer"] = repair_mojibake(
+            result["answer"]
+        )
+
+    return result
+
+
 # ============================================================
 # USER REQUESTED CHARTS
 # ============================================================
@@ -5295,78 +5356,6 @@ def _chart_response(question):
         )
 
     return None
-
-    # --------------------------------------------------------
-    # User requested chart
-    # --------------------------------------------------------
-
-    chart_result = _chart_response(
-        question
-    )
-
-    if chart_result is not None:
-
-        if "answer" in chart_result:
-            chart_result["answer"] = repair_mojibake(
-                chart_result["answer"]
-            )
-
-        return chart_result
-
-    # --------------------------------------------------------
-    # Deterministic analysis
-    # --------------------------------------------------------
-
-    analysis_result = (
-        deterministic_analysis(
-            question
-        )
-    )
-
-    if analysis_result is not None:
-
-        if "answer" in analysis_result:
-
-            analysis_result[
-                "answer"
-            ] = repair_mojibake(
-                analysis_result[
-                    "answer"
-                ]
-            )
-
-        return analysis_result
-
-    # --------------------------------------------------------
-    # Dynamic dataset analysis
-    # --------------------------------------------------------
-
-    dynamic_result = dynamic_dataset_analysis(
-        question
-    )
-
-    if dynamic_result is not None:
-
-        if "answer" in dynamic_result:
-
-            dynamic_result[
-                "answer"
-            ] = repair_mojibake(
-                dynamic_result[
-                    "answer"
-                ]
-            )
-
-        return dynamic_result
-
-    # --------------------------------------------------------
-    # Normal AI chat
-    # --------------------------------------------------------
-
-    return ask_huggingface(
-        question
-    )
-
 
 # ============================================================
 # STARTUP INFORMATION
