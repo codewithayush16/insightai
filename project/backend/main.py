@@ -3489,45 +3489,64 @@ def train_model(
     # --------------------------------------------------------
     # ACTIVE DATASET
     # --------------------------------------------------------
-
     try:
 
+        # 1. Current uploaded dataset in memory
         if uploaded_dataset is not None:
 
             df = uploaded_dataset.copy()
 
-            # Preserve current project training workflow.
-            df.to_csv(
-                FEATURE_FILE,
-                index=False
+            print(
+                "TRAINING DATA SOURCE: CURRENT UPLOADED DATASET"
+            )
+
+        # 2. Saved uploaded dataset
+        elif os.path.exists(
+            UPLOADED_FEATURE_FILE
+        ):
+
+            df = pd.read_csv(
+                UPLOADED_FEATURE_FILE
+            )
+
+            print(
+                "TRAINING DATA SOURCE: SAVED UPLOADED DATASET"
+            )
+
+        # 3. Normal feature dataset
+        elif os.path.exists(
+            FEATURE_FILE
+        ):
+
+            df = pd.read_csv(
+                FEATURE_FILE
+            )
+
+            print(
+                "TRAINING DATA SOURCE: FEATURE DATASET"
+            )
+
+        # 4. ETL output
+        elif os.path.exists(
+            FINAL_FILE
+        ):
+
+            df = pd.read_csv(
+                FINAL_FILE
+            )
+
+            print(
+                "TRAINING DATA SOURCE: ETL DATASET"
             )
 
         else:
 
-            if os.path.exists(
-                FEATURE_FILE
-            ):
-
-                df = pd.read_csv(
-                    FEATURE_FILE
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "No feature dataset available."
                 )
-
-            elif os.path.exists(
-                FINAL_FILE
-            ):
-
-                df = pd.read_csv(
-                    FINAL_FILE
-                )
-
-            else:
-
-                raise HTTPException(
-                    status_code=404,
-                    detail=(
-                        "No feature dataset available."
-                    )
-                )
+            )
 
     except HTTPException:
         raise
@@ -3541,11 +3560,6 @@ def train_model(
                 + str(e)
             )
         )
-
-    df = clean_columns(
-        df
-    )
-
     # --------------------------------------------------------
     # RESOLVE TARGET
     # --------------------------------------------------------
