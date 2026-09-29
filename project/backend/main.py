@@ -478,38 +478,28 @@ def load_model_results():
 # ============================================================
 # DATASET HELPERS
 # ============================================================
+
 def get_dataset():
     """
     Return currently active dataset.
 
-    Priority:
-    1. Uploaded dataset in memory
-    2. Saved uploaded dataset
-    3. feature_data.csv
-    4. final_output.csv
+    Uploaded dataset has priority.
+    Otherwise feature_data.csv is used.
+    Finally final_output.csv is used.
     """
 
     global uploaded_dataset
 
-    # 1. Current uploaded dataset
     if uploaded_dataset is not None:
+
         return uploaded_dataset.copy()
 
-    # 2. Saved uploaded dataset
-    if os.path.exists(UPLOADED_FEATURE_FILE):
+    if os.path.exists(
+        FEATURE_FILE
+    ):
 
         try:
-            return pd.read_csv(
-                UPLOADED_FEATURE_FILE
-            )
 
-        except Exception:
-            pass
-
-    # 3. Normal feature dataset
-    if os.path.exists(FEATURE_FILE):
-
-        try:
             return pd.read_csv(
                 FEATURE_FILE
             )
@@ -517,10 +507,12 @@ def get_dataset():
         except Exception:
             pass
 
-    # 4. ETL output
-    if os.path.exists(FINAL_FILE):
+    if os.path.exists(
+        FINAL_FILE
+    ):
 
         try:
+
             return pd.read_csv(
                 FINAL_FILE
             )
@@ -535,6 +527,74 @@ def get_dataset():
             "Upload a dataset or run ETL first."
         )
     )
+
+
+def get_active_feature_data():
+    """
+    Load feature dataset for analysis/prediction.
+    """
+
+    global uploaded_dataset
+
+    if uploaded_dataset is not None:
+
+        return uploaded_dataset.copy()
+
+    if os.path.exists(
+        FEATURE_FILE
+    ):
+
+        return pd.read_csv(
+            FEATURE_FILE
+        )
+
+    if os.path.exists(
+        FINAL_FILE
+    ):
+
+        return pd.read_csv(
+            FINAL_FILE
+        )
+
+    raise FileNotFoundError(
+        "feature_data.csv not found."
+    )
+
+
+def get_model():
+    """
+    Load trained model.
+    """
+
+    if not os.path.exists(
+        MODEL_FILE
+    ):
+
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Trained model not found. "
+                "Train a model first."
+            )
+        )
+
+    try:
+
+        return joblib.load(
+            MODEL_FILE
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to load trained model: "
+                + str(e)
+            )
+        )
+
+
 # ============================================================
 # MODEL METRICS
 # ============================================================
@@ -780,123 +840,70 @@ def detect_target_from_question(
     df=None
 ):
     """
-    Detect target requested in a natural-language question.
+    Detect the value the user wants the model to predict.
+
+    For phrases such as:
+        predict profit for quantity 10
+    the target is profit; quantity is an input feature.
     """
 
     if df is None:
-
         try:
             df = get_active_feature_data()
         except Exception:
             df = None
 
-    question_normalized = normalize_text(
-        question
+    text = normalize_text(question)
+
+    # First inspect the part immediately following the prediction verb.
+    # This prevents input features such as quantity from becoming the target.
+    explicit_patterns = [
+        (r"\b(?:predict|prediction|estimate|estimated|calculate)\s+(?:the\s+)?(?:future\s+)?(revenue|sales|sale|profit|quantity|qty|units?)\b", None),
+        (r"\b(?:forecast)\s+(?:the\s+)?(?:future\s+)?(revenue|sales|sale|profit|quantity|qty|units?)\b", None),
+        (r"\b(?:what\s+is\s+the\s+predicted|what\s+will\s+be\s+the)\s+(revenue|sales|sale|profit|quantity|qty|units?)\b", None),
+    ]
+
+    for pattern, _ in explicit_patterns:
+        match = re.search(pattern, text)
+        if match:
+            raw_target = match.group(1)
+            target = {
+                "sale": "sales",
+                "qty": "quantity",
+                "unit": "quantity",
+                "units": "quantity"
+            }.get(raw_target, raw_target)
+            resolved = resolve_target_name(df, target)
+            return resolved or target
+
+    # For the common "predict X for ..." form, X is the target.
+    match = re.search(
+        r"\b(?:predict|estimate|calculate)\s+(?:the\s+)?(?:future\s+)?(revenue|sales|sale|profit|quantity|qty|units?)\b",
+        text
     )
+    if match:
+        raw_target = match.group(1)
+        target = {
+            "sale": "sales",
+            "qty": "quantity",
+            "unit": "quantity",
+            "units": "quantity"
+        }.get(raw_target, raw_target)
+        resolved = resolve_target_name(df, target)
+        return resolved or target
 
-    # First check exact dataset columns
-    if df is not None:
-
-        candidates = []
-
-        for column in df.columns:
-
-            normalized_column = (
-                normalize_column_name(
-                    column
-                )
-            )
-
-            if normalized_column in [
-                "revenue",
-                "sales",
-                "profit",
-                "quantity",
-                "qty",
-                "units",
-                "units_sold"
-            ]:
-
-                candidates.append(
-                    (
-                        normalized_column,
-                        column
-                    )
-                )
-
-        for normalized_column, actual in candidates:
-
-            display_name = str(
-                actual
-            ).replace(
-                "_",
-                " "
-            )
-
-            if (
-                normalized_column
-                in question_normalized
-            ):
-
-                return actual
-
-            if (
-                normalize_text(
-                    display_name
-                )
-                in question_normalized
-            ):
-
-                return actual
-
-    # Common target words
+    # Otherwise inspect target words in a stable priority order.
     target_patterns = [
-        (
-            r"\brevenue\b",
-            "revenue"
-        ),
-        (
-            r"\bsales\b",
-            "sales"
-        ),
-        (
-            r"\bsale\b",
-            "sales"
-        ),
-        (
-            r"\bprofit\b",
-            "profit"
-        ),
-        (
-            r"\bquantity\b",
-            "quantity"
-        ),
-        (
-            r"\bqty\b",
-            "quantity"
-        ),
-        (
-            r"\bunits?\b",
-            "quantity"
-        )
+        (r"\brevenue\b", "revenue"),
+        (r"\bsales?\b", "sales"),
+        (r"\bprofit\b", "profit"),
+        (r"\b(?:quantity|qty|units?)\b", "quantity")
     ]
 
     for pattern, target in target_patterns:
-
-        if re.search(
-            pattern,
-            question_normalized
-        ):
-
-            resolved = resolve_target_name(
-                df,
-                target
-            )
-
-            if resolved:
-                return resolved
-
-            return target
+        if re.search(pattern, text):
+            resolved = resolve_target_name(df, target)
+            return resolved or target
 
     return None
 
@@ -906,15 +913,27 @@ def detect_target_from_question(
 # ============================================================
 
 EXCLUDED_TARGET_COLUMNS = {
+    # ID / identifier columns
     "order_id",
     "id",
     "row_id",
+    "customer_id",
+    "product_id",
+
+    # Date / calendar helper columns
     "order_date",
+    "date",
     "order_date_year",
     "order_date_month",
     "order_date_quarter",
     "order_date_day_of_week",
-    "revenue_per_unit"
+    "year",
+    "month",
+    "quarter",
+    "day_of_week",
+    "day_of_year",
+    "week",
+    "is_weekend"
 }
 
 
@@ -1760,6 +1779,148 @@ def handle_natural_language_prediction(
             df
         )
     )
+
+    # --------------------------------------------------------
+    # DEFAULT INPUTS FOR GENERAL PREDICTION
+    # --------------------------------------------------------
+    # If the user asks only "Predict profit" (without supplying
+    # feature values), use representative values from the active
+    # dataset. Explicit values supplied in the question are never
+    # overwritten.
+    numeric_features = metadata.get(
+        "numeric_features",
+        []
+    )
+
+    categorical_features = metadata.get(
+        "categorical_features",
+        []
+    )
+
+    if missing:
+
+        date_features = {
+            "order_date_year",
+            "order_date_month",
+            "order_date_quarter",
+            "order_date_day_of_week",
+            "year",
+            "month",
+            "quarter",
+            "qtr",
+            "qtr_id",
+            "day_of_week",
+            "weekday"
+        }
+
+        date_column = resolve_column(
+            df,
+            "order_date",
+            [
+                "order_date",
+                "orderdate",
+                "date",
+                "transaction_date"
+            ]
+        )
+
+        parsed_dates = None
+
+        if date_column:
+            parsed_dates = pd.to_datetime(
+                df[date_column],
+                errors="coerce"
+            )
+
+        for feature in list(missing):
+
+            normalized_feature = (
+                normalize_column_name(
+                    feature
+                )
+            )
+
+            # Date-derived features: use the latest valid
+            # dataset date as the default prediction date.
+            if normalized_feature in date_features:
+
+                if (
+                    parsed_dates is not None
+                    and parsed_dates.notna().any()
+                ):
+
+                    latest_date = parsed_dates.max()
+
+                    if normalized_feature in [
+                        "order_date_year",
+                        "year"
+                    ]:
+                        values[feature] = float(
+                            latest_date.year
+                        )
+
+                    elif normalized_feature in [
+                        "order_date_month",
+                        "month"
+                    ]:
+                        values[feature] = float(
+                            latest_date.month
+                        )
+
+                    elif normalized_feature in [
+                        "order_date_quarter",
+                        "quarter",
+                        "qtr",
+                        "qtr_id"
+                    ]:
+                        values[feature] = float(
+                            ((latest_date.month - 1) // 3) + 1
+                        )
+
+                    else:
+                        values[feature] = float(
+                            latest_date.dayofweek
+                        )
+
+                continue
+
+            # Numeric features: use the dataset median.
+            if feature in numeric_features:
+
+                numeric = pd.to_numeric(
+                    df[feature],
+                    errors="coerce"
+                ).dropna()
+
+                if not numeric.empty:
+                    values[feature] = float(
+                        numeric.median()
+                    )
+
+                continue
+
+            # Categorical features: use the most frequent value.
+            if feature in categorical_features:
+
+                series = (
+                    df[feature]
+                    .dropna()
+                    .astype(str)
+                )
+
+                if not series.empty:
+                    mode = series.mode()
+
+                    if not mode.empty:
+                        values[feature] = str(
+                            mode.iloc[0]
+                        )
+
+        missing = [
+            feature
+            for feature in selected_features
+            if feature not in values
+        ]
 
     if missing:
 
@@ -3489,64 +3650,45 @@ def train_model(
     # --------------------------------------------------------
     # ACTIVE DATASET
     # --------------------------------------------------------
+
     try:
 
-        # 1. Current uploaded dataset in memory
         if uploaded_dataset is not None:
 
             df = uploaded_dataset.copy()
 
-            print(
-                "TRAINING DATA SOURCE: CURRENT UPLOADED DATASET"
-            )
-
-        # 2. Saved uploaded dataset
-        elif os.path.exists(
-            UPLOADED_FEATURE_FILE
-        ):
-
-            df = pd.read_csv(
-                UPLOADED_FEATURE_FILE
-            )
-
-            print(
-                "TRAINING DATA SOURCE: SAVED UPLOADED DATASET"
-            )
-
-        # 3. Normal feature dataset
-        elif os.path.exists(
-            FEATURE_FILE
-        ):
-
-            df = pd.read_csv(
-                FEATURE_FILE
-            )
-
-            print(
-                "TRAINING DATA SOURCE: FEATURE DATASET"
-            )
-
-        # 4. ETL output
-        elif os.path.exists(
-            FINAL_FILE
-        ):
-
-            df = pd.read_csv(
-                FINAL_FILE
-            )
-
-            print(
-                "TRAINING DATA SOURCE: ETL DATASET"
+            # Preserve current project training workflow.
+            df.to_csv(
+                FEATURE_FILE,
+                index=False
             )
 
         else:
 
-            raise HTTPException(
-                status_code=404,
-                detail=(
-                    "No feature dataset available."
+            if os.path.exists(
+                FEATURE_FILE
+            ):
+
+                df = pd.read_csv(
+                    FEATURE_FILE
                 )
-            )
+
+            elif os.path.exists(
+                FINAL_FILE
+            ):
+
+                df = pd.read_csv(
+                    FINAL_FILE
+                )
+
+            else:
+
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "No feature dataset available."
+                    )
+                )
 
     except HTTPException:
         raise
@@ -3560,6 +3702,11 @@ def train_model(
                 + str(e)
             )
         )
+
+    df = clean_columns(
+        df
+    )
+
     # --------------------------------------------------------
     # RESOLVE TARGET
     # --------------------------------------------------------
@@ -4689,46 +4836,33 @@ def chat(
 
         return result
 
+    # --------------------------------------------------------
+    # Deterministic analysis
+    # --------------------------------------------------------
 
-    # ========================================================
-    # USER REQUESTED CHART
-    # ========================================================
-
-    chart_result = _chart_response(
-        question
-    )
-
-    if chart_result is not None:
-
-        if "answer" in chart_result:
-            chart_result["answer"] = repair_mojibake(
-                chart_result["answer"]
-            )
-
-        return chart_result
-
-
-
-    # ========================================================
-    # DETERMINISTIC DATASET ANALYSIS
-    # ========================================================
-
-    analysis_result = deterministic_analysis(
-        question
+    analysis_result = (
+        deterministic_analysis(
+            question
+        )
     )
 
     if analysis_result is not None:
 
         if "answer" in analysis_result:
-            analysis_result["answer"] = repair_mojibake(
-                analysis_result["answer"]
+
+            analysis_result[
+                "answer"
+            ] = repair_mojibake(
+                analysis_result[
+                    "answer"
+                ]
             )
 
         return analysis_result
 
-    # ========================================================
-    # DYNAMIC DATASET ANALYSIS
-    # ========================================================
+    # --------------------------------------------------------
+    # Dynamic dataset analysis
+    # --------------------------------------------------------
 
     dynamic_result = dynamic_dataset_analysis(
         question
@@ -4737,579 +4871,25 @@ def chat(
     if dynamic_result is not None:
 
         if "answer" in dynamic_result:
-            dynamic_result["answer"] = repair_mojibake(
-                dynamic_result["answer"]
+
+            dynamic_result[
+                "answer"
+            ] = repair_mojibake(
+                dynamic_result[
+                    "answer"
+                ]
             )
 
         return dynamic_result
 
-    # ========================================================
-    # NORMAL AI CHAT
-    # ========================================================
+    # --------------------------------------------------------
+    # Normal AI chat
+    # --------------------------------------------------------
 
-    result = ask_huggingface(
+    return ask_huggingface(
         question
     )
 
-    if result is None:
-        return {
-            "success": False,
-            "provider": "InsightAI",
-            "type": "chat",
-            "answer": (
-                "I could not generate a response for that question."
-            )
-        }
-
-    if "answer" in result:
-        result["answer"] = repair_mojibake(
-            result["answer"]
-        )
-
-    return result
-
-
-# ============================================================
-# USER REQUESTED CHARTS
-# ============================================================
-
-def _chart_find_column(df, candidates):
-    """Return the real dataframe column matching any candidate name."""
-    normalized = {
-        normalize_column_name(col): col
-        for col in df.columns
-    }
-
-    for candidate in candidates:
-        key = normalize_column_name(candidate)
-        if key in normalized:
-            return normalized[key]
-
-    return None
-
-
-def _is_chart_request(question):
-    """Detect natural-language requests for an actual chart/graph."""
-    q = normalize_text(question)
-
-    chart_words = [
-        "chart",
-        "graph",
-        "plot",
-        "visualize",
-        "visualise",
-        "bar",
-        "line",
-        "scatter",
-        "pie",
-        "donut",
-        "distribution",
-        "comparison",
-        "compare",
-        "relationship",
-        "versus",
-        " vs "
-    ]
-
-    return any(word in q for word in chart_words)
-
-
-def _detect_requested_chart_type(question):
-    """Detect requested Chart.js chart type."""
-    q = normalize_text(question)
-
-    if any(word in q for word in [
-        "scatter",
-        "relationship",
-        "versus",
-        " vs "
-    ]):
-        return "scatter"
-
-    if any(word in q for word in [
-        "pie",
-        "donut",
-        "distribution"
-    ]):
-        return "pie"
-
-    if any(word in q for word in [
-        "line chart",
-        "line graph",
-        "trend",
-        "monthly",
-        "weekly",
-        "daily"
-    ]):
-        return "line"
-
-    if any(word in q for word in [
-        "bar chart",
-        "bar graph",
-        "comparison",
-        "compare"
-    ]):
-        return "bar"
-
-    return None
-
-
-def _chart_metric_column(df, question):
-    """Detect the numeric metric requested by the user."""
-    q = normalize_text(question)
-
-    if "profit margin" in q or "margin" in q:
-        candidates = [
-            "profit_margin",
-            "margin",
-            "profit_percentage"
-        ]
-    elif "revenue per unit" in q:
-        candidates = [
-            "revenue_per_unit"
-        ]
-    elif "unit price" in q or "price" in q:
-        candidates = [
-            "unit_price",
-            "price"
-        ]
-    elif "quantity" in q or "demand" in q or "units" in q:
-        candidates = [
-            "quantity",
-            "qty",
-            "units",
-            "units_sold",
-            "quantity_ordered"
-        ]
-    elif "profit" in q:
-        candidates = [
-            "profit",
-            "net_profit",
-            "gross_profit"
-        ]
-    elif "revenue" in q or "sales" in q or "sale" in q:
-        candidates = [
-            "revenue",
-            "sales",
-            "sales_amount",
-            "total_sales",
-            "sale",
-            "amount"
-        ]
-    else:
-        candidates = []
-
-    column = _chart_find_column(df, candidates)
-    if column is not None:
-        return column
-
-    # Dynamic fallback: first useful numeric column.
-    excluded = {
-        "order_id",
-        "id",
-        "row_id",
-        "postal_code",
-        "zip_code",
-        "zipcode"
-    }
-
-    for col in df.columns:
-        if normalize_column_name(col) in excluded:
-            continue
-
-        values = pd.to_numeric(
-            df[col],
-            errors="coerce"
-        )
-
-        if values.notna().sum() >= 2 and values.nunique() >= 2:
-            return col
-
-    return None
-
-
-def _chart_group_column(df, question):
-    """Detect a categorical/date grouping column from the question."""
-    q = normalize_text(question)
-
-    group_candidates = [
-        ("sub category", ["sub_category"]),
-        ("subcategory", ["sub_category"]),
-        ("category", ["category"]),
-        ("region", ["region"]),
-        ("state", ["state"]),
-        ("city", ["city"]),
-        ("country", ["country"]),
-        ("product", ["product_name", "product"]),
-        ("customer", ["customer_name", "customer"]),
-        ("month", ["order_date", "date", "orderdate"]),
-        ("date", ["order_date", "date", "orderdate"])
-    ]
-
-    for phrase, candidates in group_candidates:
-        if phrase in q:
-            column = _chart_find_column(
-                df,
-                candidates
-            )
-            if column is not None:
-                return column
-
-    # Sensible categorical fallback.
-    preferred = [
-        "category",
-        "sub_category",
-        "region",
-        "state",
-        "country",
-        "city"
-    ]
-
-    column = _chart_find_column(
-        df,
-        preferred
-    )
-
-    if column is not None:
-        return column
-
-    for col in df.columns:
-        if df[col].dtype == "object":
-            return col
-
-    return None
-
-
-def _chart_response(question):
-    """Create a frontend-ready chart response from the active dataset."""
-    if not _is_chart_request(question):
-        return None
-
-    chart_type = _detect_requested_chart_type(question)
-    if chart_type is None:
-        return None
-
-    try:
-        df = get_dataset()
-
-        if df is None or df.empty:
-            return {
-                "success": False,
-                "type": "chart",
-                "answer": "No dataset is currently available for chart generation."
-            }
-
-        # ----------------------------------------------------
-        # Scatter chart: X vs Y
-        # ----------------------------------------------------
-        if chart_type == "scatter":
-            q = normalize_text(question)
-
-            if "quantity" in q and (
-                "revenue" in q or "sales" in q
-            ):
-                x_col = _chart_find_column(
-                    df,
-                    ["quantity", "qty", "units", "units_sold"]
-                )
-                y_col = _chart_find_column(
-                    df,
-                    ["revenue", "sales", "sales_amount", "total_sales", "sale", "amount"]
-                )
-            elif "revenue" in q and "profit" in q:
-                x_col = _chart_find_column(
-                    df,
-                    ["revenue", "sales", "sales_amount", "total_sales"]
-                )
-                y_col = _chart_find_column(
-                    df,
-                    ["profit", "net_profit", "gross_profit"]
-                )
-            elif "price" in q and (
-                "quantity" in q or "demand" in q
-            ):
-                x_col = _chart_find_column(
-                    df,
-                    ["unit_price", "price"]
-                )
-                y_col = _chart_find_column(
-                    df,
-                    ["quantity", "qty", "units", "units_sold"]
-                )
-            else:
-                numeric = []
-                for col in df.columns:
-                    values = pd.to_numeric(
-                        df[col],
-                        errors="coerce"
-                    )
-                    if values.notna().sum() >= 2 and values.nunique() >= 2:
-                        numeric.append(col)
-
-                if len(numeric) < 2:
-                    return None
-
-                x_col, y_col = numeric[:2]
-
-            if x_col is None or y_col is None:
-                return None
-
-            working = df[[x_col, y_col]].copy()
-            working[x_col] = pd.to_numeric(
-                working[x_col],
-                errors="coerce"
-            )
-            working[y_col] = pd.to_numeric(
-                working[y_col],
-                errors="coerce"
-            )
-            working = working.dropna()
-
-            if len(working) > 3000:
-                working = working.sample(
-                    n=3000,
-                    random_state=42
-                )
-
-            data = [
-                {
-                    "x": float(row[x_col]),
-                    "y": float(row[y_col])
-                }
-                for _, row in working.iterrows()
-            ]
-
-            return {
-                "success": True,
-                "provider": "InsightAI Local Analytics",
-                "type": "chart",
-                "answer": f"{x_col} vs {y_col} scatter chart.",
-                "chart": {
-                    "type": "scatter",
-                    "title": f"{x_col} vs {y_col}",
-                    "xLabel": str(x_col),
-                    "yLabel": str(y_col),
-                    "data": data
-                }
-            }
-
-        # ----------------------------------------------------
-        # Revenue + profit comparison bar chart
-        # ----------------------------------------------------
-        if chart_type == "bar":
-            q = normalize_text(question)
-
-            if (
-                ("revenue" in q or "sales" in q)
-                and "profit" in q
-                and (
-                    "comparison" in q
-                    or "compare" in q
-                    or " and " in q
-                )
-            ):
-                revenue_col = _chart_find_column(
-                    df,
-                    ["revenue", "sales", "sales_amount", "total_sales"]
-                )
-                profit_col = _chart_find_column(
-                    df,
-                    ["profit", "net_profit", "gross_profit"]
-                )
-
-                if revenue_col and profit_col:
-                    revenue = pd.to_numeric(
-                        df[revenue_col],
-                        errors="coerce"
-                    ).sum()
-                    profit = pd.to_numeric(
-                        df[profit_col],
-                        errors="coerce"
-                    ).sum()
-
-                    return {
-                        "success": True,
-                        "provider": "InsightAI Local Analytics",
-                        "type": "chart",
-                        "answer": "Revenue and profit comparison chart.",
-                        "chart": {
-                            "type": "bar",
-                            "title": "Revenue vs Profit",
-                            "labels": [
-                                str(revenue_col),
-                                str(profit_col)
-                            ],
-                            "datasets": [
-                                {
-                                    "label": "Total",
-                                    "data": [
-                                        float(revenue),
-                                        float(profit)
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-
-        # ----------------------------------------------------
-        # Monthly/date line chart
-        # ----------------------------------------------------
-        if chart_type == "line":
-            date_col = _chart_find_column(
-                df,
-                [
-                    "order_date",
-                    "date",
-                    "orderdate",
-                    "transaction_date",
-                    "sale_date"
-                ]
-            )
-
-            if date_col is None:
-                return None
-
-            metric_col = _chart_metric_column(
-                df,
-                question
-            )
-
-            if metric_col is None:
-                return None
-
-            temp = df[[date_col, metric_col]].copy()
-            temp[date_col] = pd.to_datetime(
-                temp[date_col],
-                errors="coerce"
-            )
-            temp[metric_col] = pd.to_numeric(
-                temp[metric_col],
-                errors="coerce"
-            )
-            temp = temp.dropna()
-
-            if temp.empty:
-                return None
-
-            monthly = (
-                temp.assign(
-                    period=temp[date_col].dt.to_period("M")
-                )
-                .groupby("period")[metric_col]
-                .sum()
-                .reset_index()
-            )
-
-            return {
-                "success": True,
-                "provider": "InsightAI Local Analytics",
-                "type": "chart",
-                "answer": f"Monthly {metric_col} line chart.",
-                "chart": {
-                    "type": "line",
-                    "title": f"Monthly {metric_col}",
-                    "labels": [
-                        str(value)
-                        for value in monthly["period"]
-                    ],
-                    "datasets": [
-                        {
-                            "label": str(metric_col),
-                            "data": [
-                                float(value)
-                                for value in monthly[metric_col]
-                            ]
-                        }
-                    ]
-                }
-            }
-
-        # ----------------------------------------------------
-        # Category/region/etc. grouped bar or pie chart
-        # ----------------------------------------------------
-        if chart_type in ["bar", "pie"]:
-            group_col = _chart_group_column(
-                df,
-                question
-            )
-            metric_col = _chart_metric_column(
-                df,
-                question
-            )
-
-            if group_col is None or metric_col is None:
-                return None
-
-            # Date grouping is handled as monthly aggregation.
-            if normalize_column_name(group_col) in {
-                "order_date",
-                "date",
-                "orderdate"
-            }:
-                dates = pd.to_datetime(
-                    df[group_col],
-                    errors="coerce"
-                )
-                values = pd.to_numeric(
-                    df[metric_col],
-                    errors="coerce"
-                )
-                temp = pd.DataFrame({
-                    "period": dates.dt.to_period("M"),
-                    "value": values
-                }).dropna()
-                grouped = (
-                    temp.groupby("period")["value"]
-                    .sum()
-                    .sort_values(ascending=False)
-                )
-            else:
-                values = pd.to_numeric(
-                    df[metric_col],
-                    errors="coerce"
-                )
-                temp = pd.DataFrame({
-                    "group": df[group_col].astype(str),
-                    "value": values
-                }).dropna()
-                grouped = (
-                    temp.groupby("group")["value"]
-                    .sum()
-                    .sort_values(ascending=False)
-                )
-
-            # Avoid sending hundreds/thousands of categories to the browser.
-            if len(grouped) > 30:
-                grouped = grouped.head(30)
-
-            labels = [str(index) for index in grouped.index]
-            values = [float(value) for value in grouped.values]
-
-            return {
-                "success": True,
-                "provider": "InsightAI Local Analytics",
-                "type": "chart",
-                "answer": f"{metric_col} by {group_col} {chart_type} chart.",
-                "chart": {
-                    "type": chart_type,
-                    "title": f"{metric_col} by {group_col}",
-                    "labels": labels,
-                    "datasets": [
-                        {
-                            "label": str(metric_col),
-                            "data": values
-                        }
-                    ]
-                }
-            }
-
-    except Exception as exc:
-        print(
-            "Chart generation error:",
-            str(exc)
-        )
-
-    return None
 
 # ============================================================
 # STARTUP INFORMATION

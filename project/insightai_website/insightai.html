@@ -2219,7 +2219,8 @@
        API
     ======================================================== */
 
-   const API_BASE = "https://insightai-backend-bo84.onrender.com";
+    const API_BASE =
+        "http://127.0.0.1:8000";
 
 
     /* ========================================================
@@ -2358,8 +2359,9 @@
 
             const response =
                 await fetch(
-    `${API_BASE}/`
-);
+                    `${API_BASE}/health`
+                );
+
 
             if (!response.ok) {
 
@@ -2374,7 +2376,7 @@
                 await response.json();
 
 
-            if (data.success === true) {
+            if (data.status === "healthy") {
 
                 status.textContent =
                     "Backend Online";
@@ -7756,16 +7758,15 @@ function renderInsightChatChart(chart) {
         }
 
         const canvas = document.createElement("canvas");
-        canvas.style.height = "auto";
-        canvas.style.maxHeight = "220px";
+        canvas.height = 260;
 
         const wrapper = document.createElement("div");
-        wrapper.style.padding = "8px";
+        wrapper.style.padding = "14px";
         wrapper.style.borderRadius = "10px";
         wrapper.style.marginBottom = "10px";
         wrapper.style.background = "white";
         wrapper.style.border = "1px solid #e5e7eb";
-        wrapper.style.maxWidth = "75%";
+        wrapper.style.maxWidth = "100%";
 
         const title = document.createElement("div");
         title.style.fontWeight = "700";
@@ -7826,7 +7827,7 @@ function renderInsightChatChart(chart) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
                         display: datasetsForChart.length > 1 ||

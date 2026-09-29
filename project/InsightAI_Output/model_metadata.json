@@ -6,69 +6,59 @@
     "split_method": "random_train_test_split",
     "forecast_date_column": "order_date",
     "selected_features": [
-        "postal_code",
-        "sales",
         "quantity",
-        "discount",
+        "unit_price",
+        "revenue",
         "order_date_year",
         "order_date_month",
         "order_date_quarter",
         "order_date_day_of_week",
-        "revenue_per_unit",
-        "ship_mode",
-        "segment",
-        "country",
         "state",
         "region",
+        "country",
         "category",
-        "sub_category"
+        "sub_category",
+        "product_name"
     ],
     "numeric_features": [
-        "postal_code",
-        "sales",
         "quantity",
-        "discount",
+        "unit_price",
+        "revenue",
         "order_date_year",
         "order_date_month",
         "order_date_quarter",
-        "order_date_day_of_week",
-        "revenue_per_unit"
+        "order_date_day_of_week"
     ],
     "categorical_features": [
-        "ship_mode",
-        "segment",
-        "country",
         "state",
         "region",
+        "country",
         "category",
-        "sub_category"
+        "sub_category",
+        "product_name"
     ],
     "date_columns": [
-        "order_date",
-        "ship_date"
+        "order_date"
     ],
     "converted_numeric_columns": [],
     "excluded_id_columns": [
-        "customer_id",
-        "order_id",
-        "product_id",
-        "row_id"
+        "order_id"
     ],
     "excluded_high_cardinality_columns": [
         "customer_name",
-        "city",
-        "product_name"
+        "city"
     ],
     "excluded_constant_numeric_features": [],
-    "excluded_redundant_numeric_features": [],
+    "excluded_redundant_numeric_features": [
+        "revenue_per_unit"
+    ],
     "excluded_target_leakage_features": [
         "profit_margin"
     ],
     "available_targets": [
-        "postal_code",
-        "sales",
         "quantity",
-        "discount",
+        "unit_price",
+        "revenue",
         "profit",
         "order_date_year",
         "order_date_month",
@@ -77,17 +67,17 @@
         "profit_margin",
         "revenue_per_unit"
     ],
-    "best_model": "Random Forest",
+    "best_model": "Gradient Boosting",
     "metrics": {
-        "r2": -0.09455561213360641,
-        "mae": 27.690246553204954,
-        "rmse": 230.36854496512558
+        "r2": 0.8663265812833608,
+        "mae": 34.95948084449441,
+        "rmse": 57.06162319902322
     },
-    "training_rows": 7995,
-    "testing_rows": 1999,
-    "feature_count": 16,
-    "numeric_feature_count": 9,
-    "categorical_feature_count": 7,
+    "training_rows": 160000,
+    "testing_rows": 40000,
+    "feature_count": 13,
+    "numeric_feature_count": 7,
+    "categorical_feature_count": 6,
     "test_size": 0.2,
     "random_state": 42,
     "max_categorical_unique": 100,
