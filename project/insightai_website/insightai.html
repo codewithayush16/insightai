@@ -7756,15 +7756,16 @@ function renderInsightChatChart(chart) {
         }
 
         const canvas = document.createElement("canvas");
-        canvas.height = 260;
+        canvas.style.height = "auto";
+        canvas.style.maxHeight = "220px";
 
         const wrapper = document.createElement("div");
-        wrapper.style.padding = "14px";
+        wrapper.style.padding = "8px";
         wrapper.style.borderRadius = "10px";
         wrapper.style.marginBottom = "10px";
         wrapper.style.background = "white";
         wrapper.style.border = "1px solid #e5e7eb";
-        wrapper.style.maxWidth = "100%";
+        wrapper.style.maxWidth = "75%";
 
         const title = document.createElement("div");
         title.style.fontWeight = "700";
@@ -7825,7 +7826,7 @@ function renderInsightChatChart(chart) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false,
+                maintainAspectRatio: true,
                 plugins: {
                     legend: {
                         display: datasetsForChart.length > 1 ||
