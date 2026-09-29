@@ -682,14 +682,14 @@ def create_one_hot_encoder():
 
         return OneHotEncoder(
             handle_unknown="ignore",
-            sparse_output=False
+            sparse_output=True
         )
 
     except TypeError:
 
         return OneHotEncoder(
             handle_unknown="ignore",
-            sparse=False
+            sparse=True
         )
 
 

@@ -478,28 +478,38 @@ def load_model_results():
 # ============================================================
 # DATASET HELPERS
 # ============================================================
-
 def get_dataset():
     """
     Return currently active dataset.
 
-    Uploaded dataset has priority.
-    Otherwise feature_data.csv is used.
-    Finally final_output.csv is used.
+    Priority:
+    1. Uploaded dataset in memory
+    2. Saved uploaded dataset
+    3. feature_data.csv
+    4. final_output.csv
     """
 
     global uploaded_dataset
 
+    # 1. Current uploaded dataset
     if uploaded_dataset is not None:
-
         return uploaded_dataset.copy()
 
-    if os.path.exists(
-        FEATURE_FILE
-    ):
+    # 2. Saved uploaded dataset
+    if os.path.exists(UPLOADED_FEATURE_FILE):
 
         try:
+            return pd.read_csv(
+                UPLOADED_FEATURE_FILE
+            )
 
+        except Exception:
+            pass
+
+    # 3. Normal feature dataset
+    if os.path.exists(FEATURE_FILE):
+
+        try:
             return pd.read_csv(
                 FEATURE_FILE
             )
@@ -507,12 +517,10 @@ def get_dataset():
         except Exception:
             pass
 
-    if os.path.exists(
-        FINAL_FILE
-    ):
+    # 4. ETL output
+    if os.path.exists(FINAL_FILE):
 
         try:
-
             return pd.read_csv(
                 FINAL_FILE
             )
@@ -527,74 +535,6 @@ def get_dataset():
             "Upload a dataset or run ETL first."
         )
     )
-
-
-def get_active_feature_data():
-    """
-    Load feature dataset for analysis/prediction.
-    """
-
-    global uploaded_dataset
-
-    if uploaded_dataset is not None:
-
-        return uploaded_dataset.copy()
-
-    if os.path.exists(
-        FEATURE_FILE
-    ):
-
-        return pd.read_csv(
-            FEATURE_FILE
-        )
-
-    if os.path.exists(
-        FINAL_FILE
-    ):
-
-        return pd.read_csv(
-            FINAL_FILE
-        )
-
-    raise FileNotFoundError(
-        "feature_data.csv not found."
-    )
-
-
-def get_model():
-    """
-    Load trained model.
-    """
-
-    if not os.path.exists(
-        MODEL_FILE
-    ):
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "Trained model not found. "
-                "Train a model first."
-            )
-        )
-
-    try:
-
-        return joblib.load(
-            MODEL_FILE
-        )
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Unable to load trained model: "
-                + str(e)
-            )
-        )
-
-
 # ============================================================
 # MODEL METRICS
 # ============================================================
