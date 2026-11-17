@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 
-raw_file = r"C:\Users\maury\Downloads\archive\product_sales_dataset_final.csv"
-etl_file = r"C:\Users\maury\Downloads\InsightAI_Output\final_output.csv"
+raw_file = r"C:\Users\Ayush\Downloads\archive\product_sales_dataset_final.csv"
+etl_file = r"InsightAI_Output\final_output.csv"
 
 raw = pd.read_csv(raw_file)
 etl = pd.read_csv(etl_file)

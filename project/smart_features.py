@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 
 # ============================================================
@@ -14,15 +15,9 @@ print("========== FEATURE ENGINEERING ==========")
 # PATHS
 # ============================================================
 
-INPUT_FILE = (
-    r"C:\Users\maury\Downloads\InsightAI_Output\final_output.csv"
-)
-
-OUTPUT_FILE = (
-    r"C:\Users\maury\Downloads\InsightAI_Output\feature_data.csv"
-)
-
-
+INPUT_FILE = Path("InsightAI_Output") / "final_output.csv"
+OUTPUT_FOLDER = Path("InsightAI_Output")
+OUTPUT_FILE = OUTPUT_FOLDER / "feature_data.csv"
 # ============================================================
 # READ DATA
 # ============================================================

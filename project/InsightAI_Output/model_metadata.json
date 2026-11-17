@@ -6,59 +6,71 @@
     "split_method": "random_train_test_split",
     "forecast_date_column": "order_date",
     "selected_features": [
+        "postal_code",
+        "sales",
         "quantity",
-        "unit_price",
-        "revenue",
+        "discount",
         "order_date_year",
         "order_date_month",
         "order_date_quarter",
         "order_date_day_of_week",
-        "state",
+        "revenue_per_unit",
+        "ship_mode",
+        "segment",
+        "countryregion",
+        "stateprovince",
         "region",
-        "country",
         "category",
-        "sub_category",
-        "product_name"
+        "sub_category"
     ],
     "numeric_features": [
+        "postal_code",
+        "sales",
         "quantity",
-        "unit_price",
-        "revenue",
+        "discount",
         "order_date_year",
         "order_date_month",
         "order_date_quarter",
-        "order_date_day_of_week"
+        "order_date_day_of_week",
+        "revenue_per_unit"
     ],
     "categorical_features": [
-        "state",
+        "ship_mode",
+        "segment",
+        "countryregion",
+        "stateprovince",
         "region",
-        "country",
         "category",
-        "sub_category",
-        "product_name"
+        "sub_category"
     ],
     "date_columns": [
-        "order_date"
+        "order_date",
+        "ship_date"
     ],
-    "converted_numeric_columns": [],
+    "converted_numeric_columns": [
+        "postal_code"
+    ],
     "excluded_id_columns": [
-        "order_id"
+        "customer_id",
+        "order_id",
+        "product_id",
+        "row_id"
     ],
     "excluded_high_cardinality_columns": [
         "customer_name",
-        "city"
+        "city",
+        "product_name"
     ],
     "excluded_constant_numeric_features": [],
-    "excluded_redundant_numeric_features": [
-        "revenue_per_unit"
-    ],
+    "excluded_redundant_numeric_features": [],
     "excluded_target_leakage_features": [
         "profit_margin"
     ],
     "available_targets": [
+        "postal_code",
+        "sales",
         "quantity",
-        "unit_price",
-        "revenue",
+        "discount",
         "profit",
         "order_date_year",
         "order_date_month",
@@ -67,17 +79,17 @@
         "profit_margin",
         "revenue_per_unit"
     ],
-    "best_model": "Gradient Boosting",
+    "best_model": "Decision Tree",
     "metrics": {
-        "r2": 0.8663265812833608,
-        "mae": 34.95948084449441,
-        "rmse": 57.06162319902322
+        "r2": 0.8115354478730811,
+        "mae": 23.662683427068743,
+        "rmse": 130.03903638703738
     },
-    "training_rows": 160000,
-    "testing_rows": 40000,
-    "feature_count": 13,
-    "numeric_feature_count": 7,
-    "categorical_feature_count": 6,
+    "training_rows": 8155,
+    "testing_rows": 2039,
+    "feature_count": 16,
+    "numeric_feature_count": 9,
+    "categorical_feature_count": 7,
     "test_size": 0.2,
     "random_state": 42,
     "max_categorical_unique": 100,

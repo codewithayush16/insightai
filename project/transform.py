@@ -592,7 +592,7 @@ if __name__ == "__main__":
     from extract import extract_data
 
     INPUT_FOLDER = (
-        r"C:\Users\maury\Downloads\archive"
+        r"c:\Users\Ayush\Downloads\archive"
     )
 
     try:

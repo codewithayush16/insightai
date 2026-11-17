@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-
 # ============================================================
 # INSIGHTAI - DYNAMIC DATA VALIDATION
 # ============================================================
@@ -15,10 +14,7 @@ print("========== VALIDATION ==========")
 # PATH
 # ============================================================
 
-INPUT_FILE = Path(
-    r"C:\Users\maury\Downloads\InsightAI_Output\final_output.csv"
-)
-
+INPUT_FILE = Path("InsightAI_Output") / "final_output.csv"
 
 # ============================================================
 # FILE CHECK

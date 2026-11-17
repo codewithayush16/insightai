@@ -14,13 +14,9 @@ print("========== EDA ==========")
 # PATHS
 # ============================================================
 
-INPUT_FILE = (
-    r"C:\Users\maury\Downloads\InsightAI_Output\feature_data.csv"
+INPUT_FILE = (r"InsightAI_Output\feature_data.csv"
 )
-
-OUTPUT_FOLDER = (
-    r"C:\Users\maury\Downloads\InsightAI_Output"
-)
+OUTPUT_FOLDER = (r"InsightAI_Output")
 
 SUMMARY_FILE = os.path.join(
     OUTPUT_FOLDER,

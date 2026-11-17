@@ -1,0 +1,2 @@
+rows,columns,duplicate_rows,total_missing_values,numeric_columns,date_columns
+200000,14,0,0,5,1
